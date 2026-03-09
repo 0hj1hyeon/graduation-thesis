@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: configmap-dynamic-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: configmap-dynamic-app
+  template:
+    metadata:
+      labels:
+        app: configmap-dynamic-app
+    spec:
+      containers:
+        - name: configmap-dynamic-app
+          image: configmap-dynamic:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8082
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config  # ConfigMap을 /config 경로로 마운트
+              readOnly: true
+      volumes:
+        - name: config-volume
+          configMap:
+            name: app-config  # ConfigMap 이름
+      serviceAccountName: default

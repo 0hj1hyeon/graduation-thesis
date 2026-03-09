@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: configmap-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: configmap-app
+  template:
+    metadata:
+      labels:
+        app: configmap-app
+    spec:
+      containers:
+        - name: configmap-app
+          image: configmap-app:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8081
