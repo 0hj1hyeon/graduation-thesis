@@ -3,9 +3,5 @@ kind: ConfigMap
 metadata:
   name: app-config
 data:
-  my.value: "before"
-  job.corn: "0 0 * * * 0"
-
-  spring.datasource.url: "jdbc:wrongdb://localhost:3306/testdb"
-  spring.datasource.username: "wronguser"
-  spring.datasource.password: "wrongpass"
+  my.value: "Hello, Kubernetes!"
+  job.cron: "0 0 * * * *"
