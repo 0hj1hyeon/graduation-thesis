@@ -39,3 +39,9 @@
 | **운영자 개입** | 재배포 및 재기동 필수 | 자동 감지 및 반영 |
 
 ---
+## 실행결과 
+기존 방식
+<img width="945" height="92" alt="image" src="https://github.com/user-attachments/assets/8956ea45-0a0d-46a8-845d-c4d3f5edb3dd" />
+<img width="581" height="117" alt="image" src="https://github.com/user-attachments/assets/837d94b7-b620-4fee-9bb2-2aeea611a62d" />
+
+동적 방
