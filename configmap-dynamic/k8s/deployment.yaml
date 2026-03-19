@@ -12,9 +12,10 @@ spec:
       labels:
         app: configmap-dynamic-app
     spec:
+      serviceAccountName: default   # 🔥 이거 추가 (핵심)
       containers:
         - name: configmap-dynamic-app
-          image: configmap-dynamic:latest
+          image: configmap-dynamic-app:v5
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8082
@@ -34,11 +35,3 @@ spec:
                 secretKeyRef:
                   name: app-secret
                   key: SPRING_DATASOURCE_PASSWORD
-          volumeMounts:
-            - name: config-volume
-              mountPath: /config
-              readOnly: true
-      volumes:
-        - name: config-volume
-          configMap:
-            name: app-config
