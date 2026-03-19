@@ -44,4 +44,5 @@
 <img width="945" height="92" alt="image" src="https://github.com/user-attachments/assets/8956ea45-0a0d-46a8-845d-c4d3f5edb3dd" />
 <img width="581" height="117" alt="image" src="https://github.com/user-attachments/assets/837d94b7-b620-4fee-9bb2-2aeea611a62d" />
 
-동적 방
+동적 방식
+<img width="940" height="387" alt="image" src="https://github.com/user-attachments/assets/7464d936-d0cf-4bdc-9f1b-e885aacdc27d" />
