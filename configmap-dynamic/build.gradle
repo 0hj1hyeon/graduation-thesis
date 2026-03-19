@@ -30,14 +30,14 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-	implementation 'org.springframework.cloud:spring-cloud-starter-kubernetes-client'
-	implementation 'org.springframework.cloud:spring-cloud-starter-kubernetes-client-config'
+	// --- 쿠버네티스 설정: Fabric8 하나로 통일 ---
 	implementation 'org.springframework.cloud:spring-cloud-starter-kubernetes-fabric8-config'
-	implementation 'org.springframework.cloud:spring-cloud-kubernetes-fabric8-autoconfig'
+	implementation 'org.springframework.cloud:spring-cloud-starter-bootstrap'
+
+	// 데이터베이스 관련
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	runtimeOnly 'com.mysql:mysql-connector-j'
-	implementation 'com.h2database:h2' // 또는 MySQL 등
-
+	implementation 'com.h2database:h2'
 }
 ext {
 	set('springCloudVersion', "2024.0.0")
