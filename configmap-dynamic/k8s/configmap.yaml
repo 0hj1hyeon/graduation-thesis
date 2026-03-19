@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: app-config
+  name: configmap-dynamic
 data:
-  my.value: "Hello, Kubernetes!"
-  job.cron: "0 0 * * * *"
+  myValue: "successs-9999"
+  jobCron: "0 0 * * * *"
