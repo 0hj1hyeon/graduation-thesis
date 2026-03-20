@@ -1,40 +1,51 @@
 package com.example.configmap_dynamic;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cloud.context.config.annotation.RefreshScope;
+import io.fabric8.kubernetes.api.model.ConfigMap;
+import io.fabric8.kubernetes.client.KubernetesClient;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-@RefreshScope
 @RestController
 public class ConfigController {
 
-    // 1. 동적 값 (ConfigMap에서 관리)
-    @Value("${myValue:default-dynamic}")
-    private String myValue;
+    private final KubernetesClient kubernetesClient;
+    private String myValue = "Legacy-Final-Test"; // 내부 메모리에서 직접 관리
 
-    // 2. 정적 값 (application.properties에 고정)
-    @Value("${static.message:This-Is-Static}")
-    private String staticMessage;
-
-    @Value("${jobCron}")
-    private String jobCron;
+    public ConfigController(KubernetesClient kubernetesClient) {
+        this.kubernetesClient = kubernetesClient;
+    }
 
     @GetMapping("/config")
     public Map<String, Object> getConfig() {
-        return Map.of(
-                "dynamic_myValue", myValue,     // 실험 대상 (실시간 변경)
-                "static_message", staticMessage, // 대조군 (재시작 전까지 고정)
-                "jobCron", jobCron
-        );
+        return Map.of("dynamic_myValue", myValue);
     }
 
     @Scheduled(fixedDelay = 3000)
-    public void printConfigValue() {
-        // 로그를 통해 실시간으로 변하는지 관찰합니다.
-        System.out.println("동적 설정 값: " + myValue + " | 정적 설정 값: " + staticMessage);
+    public void pollAndPrint() {
+        try {
+            // NPE 방지 및 안전한 데이터 추출
+            ConfigMap cmap = kubernetesClient.configMaps()
+                    .inNamespace("default")
+                    .withName("configmap-dynamic")
+                    .get();
+
+            if (cmap != null && cmap.getData() != null) {
+                String newValue = cmap.getData().get("myValue");
+                if (newValue != null) {
+                    this.myValue = newValue;
+                }
+            }
+
+            String currentTime = java.time.LocalTime.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
+            System.out.println("[" + currentTime + "] 현재 설정 값: " + this.myValue);
+
+        } catch (Exception e) {
+            // 에러 원인을 명확히 파악하기 위한 로그 수정
+            System.out.println("K8s API 조회 실패: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
     }
 }
