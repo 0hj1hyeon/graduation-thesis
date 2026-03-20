@@ -14,18 +14,21 @@ import java.util.Map;
 @RestController
 public class ConfigController {
 
-    private final KubernetesClient kubernetesClient;
+
     private String myValue = "Watch-API-Init"; // 힙 메모리 변수
 
-    public ConfigController(KubernetesClient kubernetesClient) {
-        this.kubernetesClient = kubernetesClient;
+    private final ConfigProperties configProperties;
+
+    // 프레임워크가 주입해주는 설정 객체만 받으면 됩니다.
+    public ConfigController(ConfigProperties configProperties) {
+        this.configProperties = configProperties;
     }
 
     /**
      * [데이터 수신] K8s API 서버와 영구적인 Watch 연결 수립 (부하 0%)
      */
     @PostConstruct
-    public void watchConfigMap() {
+   /* public void watchConfigMap() {
         kubernetesClient.configMaps()
                 .inNamespace("default")
                 .withName("configmap-dynamic")
@@ -50,7 +53,7 @@ public class ConfigController {
                         }
                     }
                 });
-    }
+    }*/
 
     @GetMapping("/config")
     public Map<String, Object> getConfig() {
@@ -65,5 +68,10 @@ public class ConfigController {
         String currentTime = java.time.LocalTime.now()
                 .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
         System.out.println("[" + currentTime + "] 현재 힙 메모리 유지 값: " + this.myValue);
+    }
+    @Scheduled(fixedDelay = 3000)
+    public void debugPrint() {
+        // ConfigProperties에서 값을 읽어옴
+        System.out.println("현재 스코프 값: " + configProperties.getMyValue());
     }
 }
