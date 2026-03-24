@@ -1,73 +1,174 @@
 # 스프링 클라우드와 쿠버네티스 기반 설정 관리 최적화
 > **Configuration Management Optimization with Spring Cloud and Kubernetes**
 
-클라우드 네이티브 환경에서 애플리케이션 재시작 없이 설정값을 실시간으로 반영하는 무중단 동적 설정 관리(Dynamic Configuration) 아키텍처를 제안하고, 기존 정적 방식 및 프레임워크 기본 기능의 한계를 분석하여 최적화된 우회 구조를 구현한 프로젝트
+## 1. 개요
+
+클라우드 네이티브 환경에서 ConfigMap 변경 시 애플리케이션 재시작 없이 설정값을 반영하는 무중단 동적 설정 관리(Dynamic Configuration) 구조를 구현하고,  
+Spring Cloud Kubernetes 기반 방식과 Kubernetes Watch API 기반 방식을 각각 적용하여 두 접근 방식의 동작 방식과 한계를 비교 분석한 프로젝트입니다.
 
 ---
 
-## 기술 스택 (Tech Stack)
-* **Framework**: Spring Boot 3.x, Spring Cloud Kubernetes
-* **Infrastructure**: Kubernetes (Minikube), Docker
-* **Library**: Fabric8 Kubernetes Client (Watch API 통신용)
-* **Language**: Java 17
-* **Build Tool**: Gradle
+## 2. 브랜치 구조
+
+본 프로젝트는 실험 단계별 구현을 브랜치 단위로 분리하여 관리합니다.
+
+- `main`  
+  전체 아키텍처 및 실험 결과를 정리한 브랜치
+
+- `feature/polling-refresh`  
+  Spring Cloud Kubernetes + `@RefreshScope` 기반 Polling 방식 구현
+
+- `refactor/watch-api-optimization`  
+  Fabric8 Kubernetes Client 기반 Watch API 방식 구현
+
+---
+## 3. 문제 정의
+
+Kubernetes 환경에서 ConfigMap 변경 시 일반적으로 Pod 재시작이 필요합니다.
+
+이 방식은 다음과 같은 문제를 발생시킵니다.
+
+- 서비스 중단 발생
+- 불필요한 Pod 재생성
+- 운영 비용 증가
+
+이 문제를 해결하기 위해 애플리케이션 재시작 없이 설정을 반영하는 구조를 설계하였습니다.
 
 ---
 
-## 프로젝트 개요 (Abstract)
-* **연구 배경**: 기존 정적 설정 방식은 ConfigMap 값 변경 시 애플리케이션 파드(Pod)의 재시작이 필수적이며, 이는 평균 30초 이상의 서비스 중단과 세션 유실을 초래함.
-* **1차 개선 (대중적 프레임워크 도입)**: 파드 재시작을 막기 위해 `Spring Cloud Kubernetes`의 기본 기능인 폴링(Polling) 엔진과 `@RefreshScope`를 적용하여 1차 무중단 갱신을 구현함. 그러나 이 방식은 K8s API 서버에 지속적인 HTTP 요청으로 인한 **불필요한 네트워크 오버헤드**를 발생시키고, 객체 재생성에 따른 애플리케이션 내부 오버헤드가 발생함을 확인.
-* **2차 최종 개선 (독자적 Watch API 아키텍처 구현)**: 프레임워크의 **비효율적인 폴링 구조**를 걷어내고, K8s Native 통신 방식인 **Watch API(Event-Driven Push)** 파이프라인을 직접 구축함. 이를 통해 **불필요한 Polling 호출을 제거하고**, 타겟 변수만 즉시 교체하는 핫스왑(Hot-Swap)을 달성한 무중단 아키텍처를 완성함. 또한, 해당 구조는 **volatile/Atomic 기반의 메모리 가시성 및 원자성 보장을 통해 동시성 환경에서도 일관된 설정값을 유지하도록 설계**함.
+## 4. 아키텍처 진화 과정
+
+### 4.1 기존 방식
+
+- ConfigMap 변경 후 `kubectl rollout restart` 수행
+- Pod 재생성 후 설정 반영
+
+문제점
+- 서비스 중단 발생
+- 리소스 낭비
 
 ---
 
-## 시스템 아키텍처 진화 (Architecture Evolution)
+### 4.2 개선안 A - Polling 기반 방식
 
-### 1. AS-IS (동적 설정 미적용)
-* **방식**: ConfigMap 수정 후 파드를 강제 재시작 (`kubectl rollout restart`).
-* **한계**: 프로세스 종료 및 재기동 기간 동안 트래픽 처리가 불가능하며, 서비스 가용성이 훼손됨.
+Spring Cloud Kubernetes + `@RefreshScope`
 
-### 2. TO-BE : 개선안 A (Polling + RefreshScope)
-* **방식**: 백그라운드 스레드가 5초 주기로 K8s API 서버를 조회(Polling)하여 변경을 감지하고, 스프링 빈(Bean) 객체를 통째로 파괴 후 재생성함.
-* **한계**: 서비스 무중단은 달성했으나, **불필요한 K8s API 호출이 지속적으로 발생**하여 네트워크 오버헤드가 누적됨.
+구현 내용
+- 일정 주기로 ConfigMap 변경 여부 확인
+- 변경 감지 시 Context refresh
+- Bean 재생성을 통해 설정값 반영
 
-### 3. TO-BE : 개선안 B (Watch API + Hot-Swap) [최종 아키텍처]
-* **방식**: K8s 마스터 노드와 영구적인 단일 연결을 유지하며 변경 이벤트를 즉시 밀어받는(Push) 구조. 이벤트를 수신한 자바 애플리케이션은 무거운 객체 재생성 없이 **대상 설정값만 선택적으로 메모리에서 갱신(Hot-Swap)** 처리함.
-* **성과**: 완벽한 무중단 달성 및 **Polling 기반 통신 제거를 통한 효율성 향상**.
-* **고려 사항**: Watch API는 연결 유지 기반 구조로, 네트워크 단절 시 재연결 및 resourceVersion 기반 이벤트 정합성 관리가 필요하며, 모든 설정이 아닌 **단순 key-value 기반 설정에 한하여 Hot-Swap 적용**이 가능하도록 설계함.
+특징
+- 프레임워크 기반으로 구현이 간단함
+- 안정적으로 동작
+
+한계
+- Polling 주기에 의존하여 즉시 반영이 어려움
+- 주기적인 Kubernetes API 호출 발생
+- Bean 재생성 비용 존재
+
+---
+
+### 4.3 개선안 B - Watch API 기반 방식
+
+Fabric8 Kubernetes Client 기반 Watch API
+
+구현 내용
+- Kubernetes API 서버와 Watch 연결 유지
+- ConfigMap 변경 이벤트를 실시간으로 수신
+- 변경된 값을 애플리케이션 메모리에서 직접 교체
+
+특징
+- 이벤트 기반 구조로 Polling 제거
+- 설정 변경 시 즉시 반영
+- 객체 재생성 없이 값만 변경
 
 ---
 
-## 실험 데이터 (Experimental Results)
-기존 정적 방식과 2가지 무중단 개선안의 정량적 비교 결과입니다.
+## 5. 실험 및 비교
 
-| 비교 항목 | [AS-IS] 미적용 (정적 설정) | [1차 개선] 무중단 Polling | [2차 최종] 무중단 Watch API |
-| :--- | :--- | :--- | :--- |
-| **서비스 가용성** | **중단 발생** (파드 재시작) | **무중단** | **무중단** |
-| **설정 반영 시간** | 평균 32.3초 소요 | 0 ~ 5초 지연 (주기 의존) | **수 ms 수준의 실시간 반영** |
-| **K8s API 트래픽 부하** | 없음 | 5초당 1회 무조건 호출 | **Polling 호출 없음 (Event 기반 수신)** |
-| **애플리케이션 비용** | 프로세스 전체 재기동 | 무거운 Bean 객체 재생성 | **객체 재생성 없이 대상 설정값만 갱신** |
-| **운영자 개입** | 롤아웃 재배포 파이프라인 가동 | 스케줄러 자동 감지 반영 | **Push 이벤트 기반 자동 반영** |
+두 방식 모두 애플리케이션 재시작 없이 설정 반영에 성공하였으며, 각 방식은 다음과 같은 차이를 보였습니다.
+
+| 항목 | Polling 방식 | Watch 방식 |
+|------|-------------|------------|
+| 반영 방식 | 주기적 조회 | 이벤트 기반 |
+| 반영 지연 | Polling 주기 의존 | 즉시 반영 |
+| API 호출 | 지속 발생 | 이벤트 발생 시 |
+| Bean 재생성 | 있음 | 없음 |
 
 ---
+
 
 ## 트러블슈팅 및 아키텍처 전환 과정 (Troubleshooting & Resolution)
 단순한 프레임워크 설정(1차 개선안)에서 K8s Native Watch API(최종 개선안)로 시스템을 전면 재설계하게 된 핵심 디버깅 및 트러블슈팅 과정
 
-### 1. Spring 감지 엔진(Detector) 정지 및 스레드 데드락 현상
-* **Issue**: `Spring Cloud Kubernetes`의 자동 리로드 기능을 켰으나, K8s ConfigMap 값을 변경해도 애플리케이션이 이를 감지하지 못하고 리로드 로직 자체가 멈추는 현상 발생.
-* **Root Cause**: 프레임워크 내부의 `ConfigurationChangeDetector`가 K8s API 서버를 지속적으로 조회(Polling)하는 과정에서, 기본 할당된 백그라운드 스레드 풀이 고갈되어 **작업 지연 및 감지 중단 현상(데드락으로 추정되는 상태)**이 발생.
-* **Resolution**: `application.properties`에 `spring.task.scheduling.pool.size=5`를 명시하여 스케줄러 스레드 풀을 확장, 감지 엔진의 안정성을 1차적으로 확보함.
+## 6. 트러블슈팅 및 아키텍처 전환 과정
 
-### 2. 설정 우선순위 충돌(Override) 및 파이프라인 단절 추적
-* **Issue**: 스레드 풀 확장 후에도 최종 단계인 객체 갱신(`@RefreshScope`)이 이루어지지 않는 무음 실패(Silent Failure) 발생.
-* **Root Cause**: 상위 패키지의 로그 레벨이 `ERROR`로 고정되어 내부 디버그 단계를 확인할 수 없었으며, `application.properties`의 `reload.enabled=false` 옵션이 상위 설정을 무효화함.
-* **Resolution**: 충돌 프로퍼티를 제거하고 `ConfigReloadUtil`의 로그 레벨을 `DEBUG`로 격상. 감지(Modified) -> 이벤트 발행(Refresh) -> 빈 재생성으로 이어지는 4단계 파이프라인을 가시화하여 정상 작동을 검증함.
+단순한 프레임워크 기반 방식에서 K8s Native Watch API 방식으로 전환하게 된 핵심 문제 해결 과정
 
-### 3. 'Push 이벤트'에 대한 논리적 모순 발견 (최종 아키텍처 도입 계기)
-* **Issue**: 1차 개선안 적용 후 내부 DEBUG 로그 분석 결과, `[TaskScheduler-1]` 스레드가 5초마다 K8s API 서버를 호출하며 `no changes found`를 반복 출력하는 것을 직접 확인.
-* **Root Cause**: 애플리케이션 내부의 이벤트 처리는 Push 방식이나, 인프라 간 통신(K8s -> App)은 Polling 방식으로 되어 있어 **불필요한 호출이 지속적으로 발생하는 구조적 비효율**이 존재했음.
-* **Resolution (Watch API 도입)**: 무거운 프레임워크 계층을 걷어내고, K8s 마스터 노드와 영구적 단일 연결을 맺어 실제 이벤트를 Push 받는 Native Watch API 기반의 2차 개선안을 독자적으로 구현하여 **Polling 기반 호출을 제거**함.
+### 6.1 Spring 감지 엔진 정지 문제
+
+문제  
+- ConfigMap 변경 시 자동 리로드가 동작하지 않고 감지 로직이 중단됨  
+
+원인  
+- Spring Cloud Kubernetes 내부 Polling 과정에 스케줄러 스레드 풀이 부족하여 감지 지연 및 중단 발생  
+
+해결  
+- `spring.task.scheduling.pool.size` 설정을 통해 스레드 풀 확장  
+- 감지 안정성 확보  
+
+---
+
+### 6.2 설정 반영 실패 (Silent Failure)
+
+문제  
+- 변경 감지는 되었으나 실제 설정값이 반영되지 않음  
+
+원인  
+- `reload.enabled=false` 설정으로 리로드 비활성화  
+- 로그 레벨 제한으로 내부 동작 확인 불가  
+
+해결  
+- 충돌 설정 제거  
+- DEBUG 로그 활성화를 통해 감지 → 이벤트 → 빈 재생성 흐름 검증  
+
+---
+
+### 6.3 Polling 구조의 비효율 문제 (아키텍처 전환 계기)
+
+문제  
+- 설정 변경이 없어도 K8s API 호출이 지속적으로 발생  
+
+원인  
+- 내부 이벤트 처리와 달리,  
+  K8s → 애플리케이션 통신이 Polling 방식으로 동작  
+
+해결  
+- Kubernetes Watch API 기반 구조로 전환  
+- 이벤트 발생 시에만 처리하도록 개선  
+- 불필요한 API 호출 제거 및 반영 속도 개선
+---
+## 7. 결론
+
+본 프로젝트에서는 Kubernetes 환경에서의 설정 관리 방식을 두 가지 접근으로 직접 구현하고 비교하였습니다.
+
+- Polling 방식은 구현이 단순하고 안정적이지만 반영 속도와 API 호출 측면에서 한계가 존재합니다.
+
+- Watch 방식은 이벤트 기반 구조를 통해 더 빠른 반영과 효율적인 운영이 가능함을 확인하였습니다.
+
+---
+
+## 8. 사용 기술
+
+- Spring Boot 3.x  
+- Spring Cloud Kubernetes  
+- Fabric8 Kubernetes Client  
+- Docker  
+- Kubernetes (Minikube)  
+- Java 17  
+- Gradle  
+
 ---
 
 ## 실행결과 
