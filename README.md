@@ -43,6 +43,9 @@ Kubernetes 환경에서 ConfigMap 변경 시 일반적으로 Pod 재시작이 �
 - ConfigMap 변경 후 `kubectl rollout restart` 수행
 - Pod 재생성 후 설정 반영
 
+#### 아키텍처
+<img width="365" height="570" alt="논문 1안 drawio" src="https://github.com/user-attachments/assets/2e71f679-ba85-4077-ba9a-e2dfb7e1760a" />
+
 문제점
 - 서비스 중단 발생
 - 리소스 낭비
@@ -61,6 +64,9 @@ Spring Cloud Kubernetes + `@RefreshScope`
 특징
 - 프레임워크 기반으로 구현이 간단함
 - 안정적으로 동작
+
+#### 아키텍처
+<img width="671" height="714" alt="논문 2안 drawio" src="https://github.com/user-attachments/assets/9e9cae08-6eda-4d17-bd82-ff54e1947802" />
 
 한계
 - Polling 주기에 의존하여 즉시 반영이 어려움
@@ -82,6 +88,9 @@ Fabric8 Kubernetes Client 기반 Watch API
 - 이벤트 기반 구조로 Polling 제거
 - 설정 변경 시 즉시 반영
 - 객체 재생성 없이 값만 변경
+
+#### 아키텍처
+<img width="580" height="691" alt="논문 3안 drawio (1)" src="https://github.com/user-attachments/assets/3f72d00e-e198-45fb-a960-80e55b7a5ad7" />
 
 ---
 
